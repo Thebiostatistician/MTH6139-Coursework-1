@@ -1,0 +1,125 @@
+---
+title: "MTH6139 Time Series"
+author:
+- name: Sangavi Pirabakaran
+date: "15 March 2024"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+  pdf_document:
+    toc: true
+subtitle: Coursework 1
+---
+
+## Introduction to project <a id="section-1"></a>
+
+The aim of this project is to model and visualise the future behaviour of a time series dataset on $CO_2$ concentrations using existing observations that were collected. In the following dataset, we have equispaced data values spanning 39 years. Using the forecasts derived from the project we can compare how $CO_2$ levels fare in the future with past levels and investigate the trends and seasonality. From this time series analysis, we can make more informed decisions using this predictive model and implement strategies to deal with rising $CO_2$ levels.
+
+
+co2 is a time series dataset in RStudio which consists of atmospheric concentrations of $CO_2$ observed at Mauna Loa from the time period 1959 to 1998. 
+
+```{r}
+co2.df = data.frame(
+  ds=zoo::as.yearmon(time(co2)), 
+  y=co2)
+```
+In the above code, we assign our time series as a dataframe, where `.ds` represents the column consisting of time values and `.y` being the column of data values. 
+
+The function `.time()` allows access the times in our time series object. `.yearmon()` converts the times into a vector which is easier to work with and lies in the `.zoo` library. 
+
+### Plot of monthly $CO_2$ levels in the Years 1959-1997
+
+```{r}
+plot(co2.df, type="l", xlab = "Years", ylab = "CO2 concentration in ppm", main = "Mauna Loa Monthly Carbon Dioxide Concentrations")
+```
+
+The above plot shows monthly $CO_2$ levels monotonically non-linearly increasing across the span of the observed period. We see that there are small fluctuations where the $CO_2$ levels rise and fall but are still increasing annually. These oscillations coincide with seasonal patterns which are explored later. The seasonal pattern changes little over time suggesting little variability. There is also no cyclic behaviour seen in the plot. There seems to be no visible signs of heterogeneous variance either.
+
+$CO_2$ levels are known to steadily increase in Winter when plant matter is decomposed by microbes who release $CO_2$ and thus contribute to the rise in the overall $CO_2$ concentrations. At Spring typically in the months April or May, the decomposing plant matter rapidly decomposes releasing a large volume of $CO_2$ into the atmosphere. The time of taking the observed samples also impacts the level of $CO_2$ as during the night, there is less photosynthesis hence higher $CO_2$ levels. Using this knowledge, we should observe a seasonal pattern in the seasonality plot as the $CO_2$ levels vary according to the Seasons.
+
+```{r}
+m = prophet::prophet(co2.df)
+```
+
+In the above code, we don't have daily or weekly seasonality modelled. We must explicitly include `.weekly.seasonality=TRUE` to run the model with seasonality.
+
+```{r}
+f = prophet::make_future_dataframe(m, periods=36, freq="month")
+```
+Now we create future dates to forecast with using the `.make_future_dataframe` function. The argument `.periods` represents the number of periods ahead that we want to forecast up to and the argument `.freq` is the frequency of the forecast to be given such as daily or monthly predictions.
+
+```{r}
+p = predict(m,f)
+```
+
+We predict our dataframe m by using prophet's function `.make_future_dataframe` with an additional argument `.f` which forecasts to the specified number of periods.
+
+### Plot of forecasted predictions for the next 3 years
+
+```{r}
+plot(m,p)
+```
+
+### Decomposition of our $CO_2$ time series dataset
+
+```{r}
+library(prophet)
+prophet_plot_components(m,p)
+```
+
+Looking at the trend plot, we see that since the start of our observations, the $CO_2$ levels are again monotonically increasing with a smooth line. We see that there is no peak and we have a positive trend indicating that the $CO_2$ levels are increasing over the years. The projected forecast for years beyond the last observed data point remains to be higher than the previous year.
+
+In the yearly seasonality plot, we see that at the beginning of the year in January, the plot begins around 0.0 and rises by a small amount before dropping to below 0.0. From the end of February till mid-March, we observe a sharp increase suggesting that seasonal effects caused the time series to deviate from the trend. Continuing on from mid-April, there is a peak at the value 3.75 indicating that decomposition is at the highest given the warm Spring temperatures. In the months May till July, the seasonality fluctuates up and down but remains decreasing. From July onwards until October, the seasonality takes a sharp dip which coincides with photosynthesis being at the highest thus plants releasing more $CO_2$ as well as plants beginning to shed their leaves thus further releasing $CO_2$. Around early November, the $CO_2$ levels begin rising with decomposition of plant matter. 
+
+***There are visible seasonal cycles in $CO_2$ concentrations with a period consisting of 12 months = 1 year. ***
+
+### Summary analysis
+
+```{r}
+summary(co2.df)
+```
+The summary of our data shows that on average the mean $CO_2$ level was 337.1 ppm with the maximum recorded level stand at 366.8 ppm. Between the third quartile and final observation at 1998 we see that within 10 years there has been a 4.7% increase in $CO_2$ levels.
+
+The summary does not give us much information so let's fit a linear trend to our dataframe.
+
+### Linear Trend
+
+The simplest trend model is a linear trend where we assume it is linear i.e. $m_t=β_0+B_1t$ . Our regression line, $m_t$ always passes through the mean value of the $m_t$'s and the mean value of the $t$'s. 
+
+```{r}
+linear_model = lm( y~ds, co2.df) 
+plot(co2.df$ds, co2.df$y, xlab = "Years", ylab = "CO2 concentration", main = "CO2 concentration (ppm)", type = "l")
+lines(co2.df$ds, fitted(linear_model), type = "l", col = "red" )
+```
+
+```{r}
+summary(linear_model)
+```
+Our summary shows that the adjusted R-squared value is 0.9694 suggesting the linear trend is able to explain 96.94% of the variability in our data. 
+
+### Plot of Residuals vs Fitted and Q-Q Plot
+
+```{r}
+plot(fitted(linear_model), rstandard(linear_model), xlab = "Fitted Values", ylab = "Standardised Residuals", main = "Residuals vs Fitted", type = "l")
+abline(a=0, b=0, lty=2)
+```
+
+For the initial values, the mean of the residuals is not close to zero, whereas, in the latter values, the residuals have means closer to 0. This indicates that the residuals may be correlated and so this linear trend function may not be the best for this time series. Overall, the amplitude of the residuals seems to remain fairly consistent across the fitted values.
+
+
+```{r}
+residuals = rstandard(linear_model)
+qqnorm(residuals)
+qqline(residuals)
+```
+
+The Q-Q plot can check for normality of the distribution of our residual errors. There are a few outliers in the bottom left and top right of our plot implying that in the tails the data may not be normally distributed. Most of the data points do not deviate away from the Q-Q regression line so a majority of the data points seem to follow a normal distribution. **A normal distribution is not the best distribution for this time series so we should investigate into using a quadratic trend or use non-parametric distributions such as Kernel functions.**
+
+### Conclusion
+
+$CO_2$ levels are well-renown for their role in rising average global temperatures so it is crucial that through forecasting we predict how $CO_2$ levels may vary in the future. Implementing policies globally and nationally to minimise actions that cause an increase in $CO_2$ release is urgently required so that we can protect people and living organisms from the effects of extreme weather events such as tsunamis and droughts, ensure adequate agriculture harvests and habitat loss. This time series model will hopefully inspire you to vocalise to our politicians as well as globally that we **MUST** take action before irreparable damage is done.
+
+
+
+<div class="tocify-extend-page" data-unique="tocify-extend-page" style="height: 0;"></div>
